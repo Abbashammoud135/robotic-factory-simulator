@@ -29,7 +29,6 @@ public class SimulatorApplication {
 
 	public static void main(String[] args) {
 		System.out.println("Starting the robot simulator...");
-		
 		System.out.println("With parameters " + Arrays.toString(args) + ".");
 		
 		final Factory factory = new Factory(200, 200, "Simple Test Puck Factory", 5);
