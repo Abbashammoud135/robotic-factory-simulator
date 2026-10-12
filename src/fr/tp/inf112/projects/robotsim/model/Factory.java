@@ -3,6 +3,8 @@ package fr.tp.inf112.projects.robotsim.model;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import fr.tp.inf112.projects.canvas.controller.Observable;
 import fr.tp.inf112.projects.canvas.controller.Observer;
@@ -15,6 +17,8 @@ import fr.tp.inf112.projects.robotsim.model.shapes.RectangularShape;
 public class Factory extends Component implements Canvas, Observable {
 
 	private static final long serialVersionUID = 5156526483612458192L;
+	
+	private static final Logger LOGGER = Logger.getLogger(Factory.class.getName());
 	
 	private static final ComponentStyle DEFAULT = new ComponentStyle(5.0f);
 
@@ -121,7 +125,7 @@ public class Factory extends Component implements Canvas, Observable {
 					Thread.sleep(100);
 				}
 				catch (final InterruptedException ex) {
-					System.err.println("Simulation was abruptly interrupted");
+					LOGGER.log(Level.SEVERE, "Simulation was abruptly interrupted", ex);
 				}
 		}
 	}
