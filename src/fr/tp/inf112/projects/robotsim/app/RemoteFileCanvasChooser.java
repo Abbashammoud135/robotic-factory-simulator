@@ -1,126 +1,133 @@
+
 package fr.tp.inf112.projects.robotsim.app;
 
 import java.awt.Component;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.swing.JOptionPane;
 
 import fr.tp.inf112.projects.canvas.view.FileCanvasChooser;
-import fr.tp.inf112.projects.robotsim.model.RemoteFactoryPersistenceManager;
 
 public class RemoteFileCanvasChooser extends FileCanvasChooser {
 
-	private static final Logger LOGGER = Logger.getLogger(RemoteFileCanvasChooser.class.getName());
+    private final String serverHost;
+    private final int serverPort;
+    private final String fileExtension;
 
-	private final String host;
-	private final int port;
+    public RemoteFileCanvasChooser(
+            Component viewer,
+            String fileExtension,
+            String documentTypeLabel,
+            String serverHost,
+            int serverPort) {
 
-	public RemoteFileCanvasChooser(final String fileExtension,
-								  final String documentTypeLabel) {
-		this(null, fileExtension, documentTypeLabel, RemoteFactoryPersistenceManager.DEFAULT_HOST, RemoteFactoryPersistenceManager.DEFAULT_PORT);
-	}
+        super(viewer, fileExtension, documentTypeLabel);
 
-	public RemoteFileCanvasChooser(final String fileExtension,
-								  final String documentTypeLabel,
-								  final String host,
-								  final int port) {
-		this(null, fileExtension, documentTypeLabel, host, port);
-	}
+        this.fileExtension = fileExtension.startsWith(".")
+                ? fileExtension.substring(1)
+                : fileExtension;
 
-	public RemoteFileCanvasChooser(final Component viewer,
-								  final String fileExtension,
-								  final String documentTypeLabel) {
-		this(viewer, fileExtension, documentTypeLabel, RemoteFactoryPersistenceManager.DEFAULT_HOST, RemoteFactoryPersistenceManager.DEFAULT_PORT);
-	}
+        this.serverHost = serverHost;
+        this.serverPort = serverPort;
+    }
 
-	public RemoteFileCanvasChooser(final Component viewer,
-								  final String fileExtension,
-								  final String documentTypeLabel,
-								  final String host,
-								  final int port) {
-		super(viewer, fileExtension, documentTypeLabel);
-		this.host = host;
-		this.port = port;
-	}
+    public RemoteFileCanvasChooser(
+            String fileExtension,
+            String documentTypeLabel) {
 
-	public String getHost() {
-		return host;
-	}
+        this(null, fileExtension, documentTypeLabel,
+                "localhost", 5000);
+    }
 
-	public int getPort() {
-		return port;
-	}
+    @Override
+    protected String browseCanvases(boolean open) throws IOException {
 
-	@Override
-	protected String browseCanvases(final boolean open) throws IOException {
-		if (open) {
-			final String[] modelFiles = fetchModelFilesFromServer();
-			if (modelFiles == null || modelFiles.length == 0) {
-				JOptionPane.showMessageDialog(getViewer(),
-											  "No model files found on server.",
-											  "Open Canvas",
-											  JOptionPane.INFORMATION_MESSAGE);
-				return null;
-			}
+        if (open) {
+            String[] canvasFiles = requestCanvasFiles();
 
-			final Object selected = JOptionPane.showInputDialog(
-				getViewer(),
-				"Select a model to open:",
-				"Open Canvas",
-				JOptionPane.QUESTION_MESSAGE,
-				null,
-				modelFiles,
-				modelFiles[0]
-			);
+            if (canvasFiles.length == 0) {
+                JOptionPane.showMessageDialog(
+                        getViewer(),
+                        "No saved canvases were found on the server.");
+                return null;
+            }
 
-			return selected != null ? selected.toString() : null;
-		}
-		else {
-			final String fileName = JOptionPane.showInputDialog(
-				getViewer(),
-				"Enter the name of the model file:",
-				"Save Canvas",
-				JOptionPane.PLAIN_MESSAGE
-			);
+            Object selected = JOptionPane.showInputDialog(
+                    getViewer(),
+                    "Select a canvas to open:",
+                    "Open Canvas",
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    canvasFiles,
+                    canvasFiles[0]);
 
-			return fileName;
-		}
-	}
+            return selected == null ? null : selected.toString();
+        }
 
-	protected String[] fetchModelFilesFromServer() throws IOException {
-		LOGGER.info("Fetching model file names from server at " + host + ":" + port);
-		try (
-			final Socket socket = new Socket(host, port);
-			final ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-			final ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
-		) {
-			out.flush();
-			out.writeObject("LIST");
-			out.flush();
+        String fileName = JOptionPane.showInputDialog(
+                getViewer(),
+                "Enter a name for the new canvas:",
+                "Save Canvas",
+                JOptionPane.QUESTION_MESSAGE);
 
-			final Object response = in.readObject();
-			if (response instanceof String[]) {
-				return (String[]) response;
-			}
-			else if (response instanceof List<?>) {
-				final List<?> list = (List<?>) response;
-				return list.toArray(new String[0]);
-			}
-			else if (response instanceof IOException) {
-				throw (IOException) response;
-			}
-			else {
-				throw new IOException("Unexpected response from server: " + response);
-			}
-		} catch (final ClassNotFoundException ex) {
-			LOGGER.log(Level.SEVERE, "Failed to deserialize server response", ex);
-			throw new IOException("Failed to deserialize server response", ex);
-		}
-	}
+        if (fileName == null || fileName.trim().isEmpty()) {
+            return null;
+        }
+
+        fileName = fileName.trim();
+
+        String extension = "." + fileExtension;
+
+        if (!fileName.endsWith(extension)) {
+            fileName += extension;
+        }
+
+        return fileName;
+    }
+
+    private String[] requestCanvasFiles() throws IOException {
+
+        try (Socket socket = new Socket(serverHost, serverPort);
+             ObjectOutputStream output = new ObjectOutputStream(
+                     new BufferedOutputStream(socket.getOutputStream()))) {
+
+            output.flush();
+
+            try (ObjectInputStream input = new ObjectInputStream(
+                    new BufferedInputStream(socket.getInputStream()))) {
+
+                output.writeObject("LIST");
+                output.flush();
+
+                Object response = readResponse(input);
+
+                if (response instanceof String[]) {
+                    return (String[]) response;
+                }
+
+                if (response instanceof IOException) {
+                    throw (IOException) response;
+                }
+
+                throw new IOException(
+                        "The server returned an invalid file list.");
+            }
+        }
+    }
+
+    private Object readResponse(ObjectInputStream input)
+            throws IOException {
+
+        try {
+            return input.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException(
+                    "Could not read the server response.", e);
+        }
+    }
 }

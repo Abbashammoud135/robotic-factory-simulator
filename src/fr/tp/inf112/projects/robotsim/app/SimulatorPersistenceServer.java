@@ -1,111 +1,117 @@
+
 package fr.tp.inf112.projects.robotsim.app;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import fr.tp.inf112.projects.robotsim.model.Factory;
+import fr.tp.inf112.projects.canvas.model.Canvas;
 import fr.tp.inf112.projects.robotsim.model.FactoryPersistenceManager;
 
-public class SimulatorPersistenceServer extends HelloWorldServer {
+public class SimulatorPersistenceServer {
 
-	private static final Logger LOGGER = Logger.getLogger(SimulatorPersistenceServer.class.getName());
+    private static final int PORT = 5000;
+    private static final String FILE_EXTENSION = ".ser";
 
-	private final FactoryPersistenceManager persistenceManager;
+    private static final Logger LOGGER =
+            Logger.getLogger(SimulatorPersistenceServer.class.getName());
 
-	public SimulatorPersistenceServer() {
-		this(DEFAULT_PORT);
-	}
+    private static final FactoryPersistenceManager manager =
+            new FactoryPersistenceManager(null);
 
-	public SimulatorPersistenceServer(final int port) {
-		super(port);
-		this.persistenceManager = new FactoryPersistenceManager(null);
-	}
+    public static void main(String[] args) {
 
-	@Override
-	protected Object processRequest(final Object request) throws Exception {
-		if (request instanceof Factory) {
-			final Factory factoryModel = (Factory) request;
-			LOGGER.info("Server persisting Factory model: " + factoryModel.getId());
-			persistenceManager.persist(factoryModel);
-			return Boolean.TRUE;
-		}
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
 
-		if (request instanceof String) {
-			final String message = (String) request;
-			LOGGER.info("Server received String request: '" + message + "'");
+            LOGGER.info("Persistence server listening on port " + PORT);
 
-			if (isListRequest(message)) {
-				final String[] fileNames = listModelFiles();
-				LOGGER.info("Returning " + fileNames.length + " model file(s) on server.");
-				return fileNames;
-			}
+            while (true) {
+                try {
+                    handleClient(serverSocket.accept());
+                } catch (IOException e) {
+                    LOGGER.log(Level.WARNING,
+                            "Client request failed.", e);
+                }
+            }
 
-			if (isReadRequest(message)) {
-				LOGGER.info("Reading model file: " + message);
-				return persistenceManager.read(message);
-			}
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE,
+                    "Could not start the persistence server.", e);
+        }
+    }
 
-			// If it's another string (e.g. from Hello World practice), echo back
-			return super.processRequest(request);
-		}
+    private static void handleClient(Socket socket) throws IOException {
 
-		LOGGER.warning("Unknown request type: " + (request != null ? request.getClass().getName() : "null"));
-		return super.processRequest(request);
-	}
+        try (Socket client = socket;
+             ObjectOutputStream output = new ObjectOutputStream(
+                     new BufferedOutputStream(client.getOutputStream()))) {
 
-	private boolean isListRequest(final String message) {
-		return "LIST".equalsIgnoreCase(message)
-			|| "".equals(message)
-			|| "LIST_FILES".equalsIgnoreCase(message)
-			|| message.startsWith("LIST:");
-	}
+            output.flush();
 
-	private boolean isReadRequest(final String message) {
-		return message.endsWith(".factory")
-			|| new File(message).exists()
-			|| new File(message + ".factory").exists();
-	}
+            try (ObjectInputStream input = new ObjectInputStream(
+                    new BufferedInputStream(client.getInputStream()))) {
 
-	public static String[] listModelFiles() {
-		final File currentDir = new File(".");
-		final File[] files = currentDir.listFiles((dir, name) -> name.endsWith(".factory"));
-		if (files == null || files.length == 0) {
-			return new String[0];
-		}
-		final String[] names = new String[files.length];
-		for (int i = 0; i < files.length; i++) {
-			names[i] = files[i].getName();
-		}
-		Arrays.sort(names);
-		return names;
-	}
+                try {
+                    Object request = input.readObject();
+                    Object response;
 
-	public static void main(String[] args) {
-		int port = DEFAULT_PORT;
-		if (args.length > 0) {
-			try {
-				port = Integer.parseInt(args[0]);
-			} catch (final NumberFormatException ex) {
-				LOGGER.warning("Invalid port parameter, using default: " + DEFAULT_PORT);
-			}
-		}
+                    if (request instanceof String) {
+                        String requestString = (String) request;
 
-		final SimulatorPersistenceServer server = new SimulatorPersistenceServer(port);
-		try {
-			server.start();
-			LOGGER.info("SimulatorPersistenceServer is running on port " + port + ". Ready for requests.");
-			while (server.isRunning()) {
-				try {
-					Thread.sleep(1000);
-				} catch (final InterruptedException e) {
-					break;
-				}
-			}
-		} catch (final IOException ex) {
-			LOGGER.log(Level.SEVERE, "Could not start SimulatorPersistenceServer on port " + port, ex);
-		}
-	}
+                        if ("LIST".equals(requestString)) {
+                            response = listCanvasFiles();
+                        } else {
+                            response = manager.read(requestString);
+                        }
+
+                    } else if (request instanceof Canvas) {
+                        manager.persist((Canvas) request);
+                        response = Boolean.TRUE;
+
+                    } else {
+                        throw new IOException("Unsupported request type.");
+                    }
+
+                    output.writeObject(response);
+
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING,
+                            "Could not process client request.", e);
+
+                    output.writeObject(new IOException(
+                            "Server could not process the request: "
+                                    + e.getMessage()));
+                }
+
+                output.flush();
+            }
+
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE,
+                    "Could not start the persistence server.", e);
+        }
+    }
+
+    private static String[] listCanvasFiles() {
+
+        File[] files = new File(".").listFiles(File::isFile);
+
+        if (files == null) {
+            return new String[0];
+        }
+
+        return Arrays.stream(files)
+                .map(File::getName)
+                .filter(name -> name.endsWith(FILE_EXTENSION))
+                .sorted()
+                .toArray(String[]::new);
+    }
 }
