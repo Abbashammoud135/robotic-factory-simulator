@@ -1,4 +1,4 @@
-package fr.tp.inf112.projects.robotsim.app;
+package HelloWorldServerClient;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;

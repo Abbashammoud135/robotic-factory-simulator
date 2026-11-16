@@ -6,6 +6,7 @@ import java.util.logging.Logger;
 
 import javax.swing.SwingUtilities;
 
+import DataPersistance.RemoteFactoryPersistenceManager;
 import fr.tp.inf112.projects.canvas.model.impl.BasicPoint;
 import fr.tp.inf112.projects.canvas.view.CanvasViewer;
 import fr.tp.inf112.projects.robotsim.model.Area;
@@ -15,7 +16,6 @@ import fr.tp.inf112.projects.robotsim.model.Conveyor;
 import fr.tp.inf112.projects.robotsim.model.Door;
 import fr.tp.inf112.projects.robotsim.model.Factory;
 import fr.tp.inf112.projects.robotsim.model.Machine;
-import fr.tp.inf112.projects.robotsim.app.RemoteFactoryPersistenceManager;
 import fr.tp.inf112.projects.robotsim.model.Robot;
 import fr.tp.inf112.projects.robotsim.model.Room;
 import fr.tp.inf112.projects.robotsim.model.path.CustomDijkstraFactoryPathFinder;

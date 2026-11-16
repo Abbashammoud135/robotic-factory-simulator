@@ -1,5 +1,5 @@
 
-package fr.tp.inf112.projects.robotsim.app;
+package DataPersistance;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;

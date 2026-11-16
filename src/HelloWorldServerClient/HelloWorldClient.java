@@ -1,4 +1,4 @@
-package fr.tp.inf112.projects.robotsim.app;
+package HelloWorldServerClient;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -15,7 +15,8 @@ public class HelloWorldClient {
 	private final int port;
 
 	public HelloWorldClient() {
-		this("localhost", HelloWorldServer.DEFAULT_PORT);
+		this.host="localhost";
+		this.port=HelloWorldServer.DEFAULT_PORT;
 	}
 
 	public HelloWorldClient(final String host, final int port) {
